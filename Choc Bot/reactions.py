@@ -1,0 +1,4 @@
+REACTIONS = {
+    "choc" : "🖕",
+    "chcolatelab" : "🖕"
+}
