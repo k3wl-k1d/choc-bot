@@ -101,7 +101,7 @@ RESPONSES = [
     "You just picked the most annoying week to john me",
     "The week starts Sunday",
     "Homie",
-    "Makes you think OUR GAME\ Should be at 9",
+    "Makes you think OUR GAME Should be at 9",
     "Bro Read. \"I have a draft at 9 and a game After? Before? I have a draft AND A game Now granted Ryan's bum ass cancelled on me Bit I didn't know that at the time What part of \"I have a draft at 9\"",
     "That is NOT what I said I said I have a draft at 9",
     "I specifically said I have a draft at 9 And you're trying to go at 8:55??? Like DUDE",
@@ -171,5 +171,6 @@ RESPONSES = [
     "lmao",
     "You’re unblocked",
     "It just hurt to have the one person who I thought have my back…… not. Like really hurt",
-    "Agree or disagree Shaved dicks ( well, area around) usually look bad"
+    "Agree or disagree Shaved dicks ( well, area around) usually look bad",
+    "six seven"
 ]

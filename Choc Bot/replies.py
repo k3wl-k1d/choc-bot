@@ -13,6 +13,11 @@ REPLIES = {
     "chickidy" : "I could guilt trip you way harder if I wanted to kiddo",
     "jaden" : "I came to you weak, vulnerable. All you did was hurt me.",
     "schedule" : "I can't do weekends. I have dinner with my family",
+    "weekend" : "too busy",
+    "weekends" : "too busy",
     "family" : "family strong",
-    "fuck you" : "no fuck you"
+    "fuck you" : "no fuck you",
+    "pokemon" : "no skill game for no skill people",
+    "mons" : "braindead chat",
+    "six" : "seven"
 }
