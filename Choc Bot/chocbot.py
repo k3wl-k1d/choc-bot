@@ -13,6 +13,9 @@ import pokemon_data_parser as p_data_parser
 KEY = "CHOC_DISCORD_BOT_KEY"
 TOKEN = os.getenv(KEY)
 
+# Dev script
+DEV = "fletchhead"
+
 # Get a list of all Pokemon names
 allPokemonNames = p_data_parser.parse_names(p_data_parser.file, p_data_parser.numPokemon)
 
@@ -59,8 +62,15 @@ async def on_message(message):
         # Code for action
         if msgContent[0] == '!':
             msgSent = True
+
+            if msgContent == "!help":
+                print(f"Current commands:\n-**!stat**: Quick stat quiz\n-**!stats** or **!s**: Multi-round stats quiz\n"
+                    "-**!battlefactory** @opp: Sends you and your opponent a BattleFactory challenge\n"
+                    "-**!battlefactoryf** [League], [0, 1, or 2 (ALL, SINGLES, SPECIAL formats)], @opp: Sends you and your opponent a BattleFactory challenge based on the filters\n"
+                    "-**!stop**: Stops the current action if busy")
+
             # Display a quick stat quiz
-            if msgContent == "!stat" or msgContent == "!s":
+            if msgContent == "!stat":
                 pkTemp = random.randint(1,p_data_parser.numPokemon)
                 stTemp = random.randint(0,5)
                 trainingQuestion = f"What is *{string.capwords(allPokemonNames[pkTemp], sep='-')}*'s {pokemonStatMap.get(stTemp)} stat?\n\tANSWER: ||{allPokemonStats.get(allPokemonNames[pkTemp])[stTemp]}||"
@@ -69,7 +79,7 @@ async def on_message(message):
                 await message.channel.send(trainingQuestion)
 
             # Display a full stat quiz
-            if msgContent == "!stats":
+            if msgContent == "!stats" or msgContent == "!s":
                 # Becomes busy when a question is asked
                 if currentQuestion:
                     await message.channel.send("**My schedule's too busy right now...**")
@@ -119,10 +129,34 @@ async def on_message(message):
 
             # Check for filters
             if msgContent[14:15] == 'f':
-                filters = msgContent[14:].replace(' ', '').split(',')
-                battle = random.choice(bf.BATTLEFACTORY_DATA)
-                while filters[0].upper != bf.LEAGUE_INDEX.get(battle[0]) and filters[1] != battle[1]:
-                    battle = random.choice(bf.BATTLEFACTORY_DATA)
+                filters = msgContent[15:].replace(' ', '').split(',')
+                leagueFilter = filters[0].upper()
+                formatFilter = int(filters[1])  # 0=all, 1=standard only, 2=special only
+
+                # Filter possible battles
+                validBattles = []
+                for battle in bf.BATTLEFACTORY_DATA:
+                    league_name = bf.LEAGUE_INDEX.get(battle[0], "").upper()
+                    isStandard = battle[1]
+
+                    # League must match
+                    if league_name != leagueFilter:
+                        continue
+
+                    # Format filter
+                    if formatFilter == 1 and not isStandard:
+                        continue
+                    elif formatFilter == 2 and isStandard:
+                        continue
+
+                    validBattles.append(battle)
+
+                # Pick random from filtered
+                if validBattles:
+                    battle = random.choice(validBattles)
+                else:
+                    # No matches found
+                    print("No battles matched your filters.")
             elif msgContent[14:15] == ' ':
                 battle = random.choice(bf.BATTLEFACTORY_DATA)
 
@@ -159,7 +193,16 @@ async def on_message(message):
 
                 # Optionally confirm in the channel
                 await message.channel.send(f"Sent Battle Factory instructions to {challenger.mention} and {challenged.mention}!\n**{home[0]}**: *{home[1]}* vs *{away[1]}*. BL do not HF!")
-
+            
+            else:
+                await message.channel.send(f"Something may have gone wrong... Did you make a typo?")
+        
+        # Kill switch
+        if msgContent == "!kill Choc" and message.author.username == DEV:
+            await message.channel.send("WHAT?! NOOOOOOO!!!")
+            print(f"Killing Choc-bot. Requested by {message.author.username}")
+            exit()
+        
 
     except:
         print("Error : Index out of range for some reason: ", msgContent)
