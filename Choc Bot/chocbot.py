@@ -127,7 +127,7 @@ async def on_message(message):
                 home = battle[1]
             
             msg = (
-                f"\n\n**WELCOME TO THE BATTLE FACTORY**\n\n"
+                f"\n**WELCOME TO THE BATTLE FACTORY**\n\n"
                 f"Fight for my amusement, *pigs*\n"
                 f"**{home[0]}**: *{home[1]}* vs *{away[1]}*\n\n"
             )
@@ -147,7 +147,7 @@ async def on_message(message):
                 await message.channel.send(f"⚠️ I couldn’t fucking DM {challenger.mention}. Please enable DMs or shut the hell up!")
 
             # Optionally confirm in the channel
-            await message.channel.send(f"Sent Battle Factory instructions to {challenger.mention} and {challenged.mention}! BL do not HF!")
+            await message.channel.send(f"Sent Battle Factory instructions to {challenger.mention} and {challenged.mention}! **{home[0]}**: *{home[1]}* vs *{away[1]}*. BL do not HF!")
 
 
     except:
