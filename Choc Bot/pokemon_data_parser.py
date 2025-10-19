@@ -1,5 +1,5 @@
 numPokemon = 1025
-file = "Choc Bot/pokemon_stats.txt"
+file = "pokemon_stats.txt"
 statMap = dict([(0, "HP"), (1, "ATTACK"), (2, "DEFENSE"), (3, "SPECIAL ATTACK"), (4, "SPECIAL DEFENSE"), (5, "SPEED")])
 
 def parse_stats(fileName : str, numPokemon : int) -> dict:

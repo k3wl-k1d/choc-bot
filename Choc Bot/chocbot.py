@@ -111,43 +111,54 @@ async def on_message(message):
                         failedAttempts = 0
                         currentQuestion = None
                         answerString = None
-        if msgContent[0:15] == "!battlefactory ":
+        if msgContent[0:14] == "!battlefactory":
             # Get the two participants
             challenger = message.author
             challenged = message.mentions[0]
-            battle = random.choice(bf.BATTLEFACTORY_DATA)
-            
-            coin = random.randint(0,1)
+            battle = None
 
-            if coin:
-                home = battle[0]
-                away = battle[1]
-            else:
-                away = battle[0]
-                home = battle[1]
-            
-            msg = (
-                f"\n**WELCOME TO THE BATTLE FACTORY**\n\n"
-                f"Fight for my amusement, *pigs*\n"
-                f"**{home[0]}**: *{home[1]}* vs *{away[1]}*\n\n"
-            )
+            # Check for filters
+            if msgContent[14:15] == 'f':
+                filters = msgContent[14:].replace(' ', '').split(',')
+                battle = random.choice(bf.BATTLEFACTORY_DATA)
+                while filters[0].upper != bf.LEAGUE_INDEX.get(battle[0]) and filters[1] != battle[1]:
+                    battle = random.choice(bf.BATTLEFACTORY_DATA)
+            elif msgContent[14:15] == ' ':
+                battle = random.choice(bf.BATTLEFACTORY_DATA)
 
-            teamHome = f"You will be playing as {home[1]}.\nYour captains are: {home[3]}\n{home[2]}\n"
-            teamAway = f"You will be playing as {away[1]}.\nYour captains are: {away[3]}\n{away[2]}\n"
+            if battle:
+                coin = random.randint(0,1)
 
-            # DM both users
-            try:
-                await challenger.send(f"Hey, {challenger.name} you bitch. You’re challenging {challenged.name}!\n\n{msg}{teamHome}")
-            except discord.Forbidden:
-                await message.channel.send(f"⚠️ I couldn’t fucking DM {challenger.mention}. Please enable DMs or shut the hell up!")
+                # Randomize order
+                if coin:
+                    home = battle[2]
+                    away = battle[3]
+                else:
+                    away = battle[2]
+                    home = battle[3]
+                
+                msg = (
+                    f"\n**WELCOME TO THE BATTLE FACTORY**\n\n"
+                    f"Fight for my amusement, *pigs*\n"
+                    f"**{home[2]}**: *{home[3]}* vs *{away[3]}*\n\n"
+                )
 
-            try:
-                await challenged.send(f"Hey, {challenged.name} you bitch! {challenger.name} has challenged you!\n\n{msg}{teamAway}")
-            except discord.Forbidden:
-                await message.channel.send(f"⚠️ I couldn’t fucking DM {challenger.mention}. Please enable DMs or shut the hell up!")
+                teamHome = f"You will be playing as {home[3]}.\nYour captains are: {home[5]}\n{home[4]}\n"
+                teamAway = f"You will be playing as {away[3]}.\nYour captains are: {away[5]}\n{away[4]}\n"
 
-            # Optionally confirm in the channel
-            await message.channel.send(f"Sent Battle Factory instructions to {challenger.mention} and {challenged.mention}! **{home[0]}**: *{home[1]}* vs *{away[1]}*. BL do not HF!")
+                # DM both users
+                try:
+                    await challenger.send(f"Hey, {challenger.name}! You’re challenging {challenged.name}!\n\n{msg}{teamHome}")
+                except discord.Forbidden:
+                    await message.channel.send(f"⚠️ I couldn’t fucking DM {challenger.mention}. Please enable DMs or shut the hell up!")
+
+                try:
+                    await challenged.send(f"Hey, {challenged.name}! {challenger.name} has challenged you!\n\n{msg}{teamAway}")
+                except discord.Forbidden:
+                    await message.channel.send(f"⚠️ I couldn’t fucking DM {challenger.mention}. Please enable DMs or shut the hell up!")
+
+                # Optionally confirm in the channel
+                await message.channel.send(f"Sent Battle Factory instructions to {challenger.mention} and {challenged.mention}!\n**{home[0]}**: *{home[1]}* vs *{away[1]}*. BL do not HF!")
 
 
     except:
