@@ -222,10 +222,10 @@ async def on_message(message):
                 print(f"Killing Choc-bot. Requested by {message.author.id}")
                 await message.channel.send("WHAT?! NOOOOOOO!!!")
                 
-                exit()
+                os._exit(0)
         
-    except:
-        print("Error : Index out of range for some reason: ", msgContent)
+    except (IndexError, KeyError) as e:
+        print(f"Error : Index out of range for some reason: {e}", msgContent)
 
     if not msgSent:
         for keyword, reply in repl.REPLIES.items():
