@@ -76,7 +76,7 @@ async def on_message(message):
             if msgContent == "!help":
                 await message.channel.send(f"Current commands:\n-**!stat**: Quick stat quiz\n-**!stats** or **!s**: Multi-round stats quiz\n"
                     "-**!battlefactory** @opp: Sends you and your opponent a BattleFactory challenge\n"
-                    "-**!battlefactoryf** [League], [0, 1, or 2 (ALL, SINGLES, SPECIAL formats)], @opp: Sends you and your opponent a BattleFactory challenge based on the filters\n"
+                    "-**!battlefactoryf** [League Name], [0, 1, or 2 (ALL, SINGLES, SPECIAL formats)], @opp: Sends you and your opponent a BattleFactory challenge based on the filters COMMAS REQUIRED\n"
                     "-**!analyze** +txt/html: Analyzes a VALID Pokemon Showdown replay HTML or txt download and outputs stats\n"
                     "-**!stop**: Stops the current action if busy")
                 
@@ -147,19 +147,20 @@ async def on_message(message):
 
                 # Check for filters
                 if msgContent[14:15] == 'f':
-                    print(f"Battle factory filter")
+                    print(f"Battle factory filter:")
                     filters = msgContent[15:].replace(' ', '').split(',')
+                    print(f"FILTERS: {filters}\n")
                     leagueFilter = filters[0].upper()
                     formatFilter = int(filters[1])  # 0=all, 1=standard only, 2=special only
 
                     # Filter possible battles
                     validBattles = []
                     for battle in bf.BATTLEFACTORY_DATA:
-                        league_name = bf.LEAGUE_INDEX.get(battle[0], "").upper()
+                        leagueName = bf.LEAGUE_INDEX.get(battle[0], "").upper()
                         isStandard = battle[1]
 
                         # League must match
-                        if league_name != leagueFilter:
+                        if leagueName != leagueFilter:
                             continue
 
                         # Format filter
@@ -220,8 +221,10 @@ async def on_message(message):
             # Kill switch
             if msgContent == "!kill choc" and message.author.id == DEV:
                 print(f"Killing Choc-bot. Requested by {message.author.id}")
-                await message.channel.send("WHAT?! NOOOOOOO!!!")
-                
+                try:
+                    await message.channel.send("WHAT?! NOOOOOOO!!!")
+                except discord.Forbidden:
+                    print("Could not send kill message, likely no message perms in this channel")
                 os._exit(0)
         
     except (IndexError, KeyError) as e:
@@ -236,8 +239,13 @@ async def on_message(message):
         
         for keyword, emoji in reac.REACTIONS.items():
             if keyword in msgContent:  # Check if the keyword is in the message
-                print(f'Reaction keyword seen in message : {message.content}')
-                await message.add_reaction(emoji)  # Add reaction to the message
+                print(f"Reaction keyword seen in message : {message.content}")
+                num = random.randint(1, 10) # num 1-10 inclusive
+                if (num <= 2):
+                    try:
+                        await message.add_reaction(emoji)  # Add reaction to the message
+                    except:
+                        print(f"Could not add reaction, likely no perms in this channel") # Failsafe
                 break  # Stop checking after the first match
     else:
         msgSent = False

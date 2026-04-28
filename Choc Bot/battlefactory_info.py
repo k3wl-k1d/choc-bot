@@ -7,6 +7,7 @@ Taken from SSSDL and SDL battle repositories (provided by mods)
   - Date (str: Season + week num) 
   - Standings (str: Standings)
   - Battle Info (list [str: Coach, str: Paste, str: Relevant info (captains, challenge command, etc)]) x2
+        - Relevant info should be formatted with the use of new line i.e. Cannot Tera, Special Rules, etc
 
 Usage:
     Referenced by chocbot.py 
