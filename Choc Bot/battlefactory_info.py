@@ -1,3 +1,17 @@
+"""
+BattleFactory Data 
+------------------
+Taken from SSSDL and SDL battle repositories (provided by mods)
+  - League (int: enum for leagues)
+  - Format (bool: Standard Natdex y/n)
+  - Date (str: Season + week num) 
+  - Standings (str: Standings)
+  - Battle Info (list [str: Coach, str: Paste, str: Relevant info (captains, challenge command, etc)]) x2
+
+Usage:
+    Referenced by chocbot.py 
+"""
+
 # LEAGUE, FORMAT BOOL, DATE, STANDINGS, [Coach, Paste, Captains] x2
 # See LEAGUE_INDEX for LEAGUE data
 # SINGLES STANDARD = True, else = False

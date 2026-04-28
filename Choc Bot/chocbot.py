@@ -9,6 +9,12 @@ import battlefactory_info as bf
 import pokemon_data_parser as p_data_parser
 import replay_analyzer as analyzer
 
+"""
+Chocbot does a lot of stuff, should probably be more modular
+IDRC tho tbh
+Let's just say it's a TODO
+"""
+
 # Load bot token from an environment variable
 KEY = "CHOC_DISCORD_BOT_KEY"
 TOKEN = os.getenv(KEY)
@@ -71,6 +77,7 @@ async def on_message(message):
                 await message.channel.send(f"Current commands:\n-**!stat**: Quick stat quiz\n-**!stats** or **!s**: Multi-round stats quiz\n"
                     "-**!battlefactory** @opp: Sends you and your opponent a BattleFactory challenge\n"
                     "-**!battlefactoryf** [League], [0, 1, or 2 (ALL, SINGLES, SPECIAL formats)], @opp: Sends you and your opponent a BattleFactory challenge based on the filters\n"
+                    "-**!analyze** +txt/html: Analyzes a VALID Pokemon Showdown replay HTML or txt download and outputs stats\n"
                     "-**!stop**: Stops the current action if busy")
                 
             # Analyze replay
@@ -235,6 +242,8 @@ async def on_message(message):
     else:
         msgSent = False
 
+
+# Handle replay analyzer
 async def handle_analyze(message: discord.Message):
     """
     Handle the !analyze command.

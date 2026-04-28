@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pokemon Showdown Replay Analyzer
----------------------------------
+--------------------------------
 Parses .html or .txt replay files and outputs per-Pokemon stats:
   - Damage Dealt   (direct from moves | passive e.g. Life Orb recoil dealt to foe)
   - Damage Taken   (direct from opponent moves | passive e.g. Life Orb recoil to self)
@@ -17,11 +17,7 @@ import re
 from html.parser import HTMLParser
 from collections import defaultdict
 
-
-# ──────────────────────────────────────────────
-# 1. Extract the raw log text from HTML or TXT
-# ──────────────────────────────────────────────
-
+# Extract the raw log text from HTML or txt
 class _BattleLogExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -73,11 +69,9 @@ def extract_log_from_text(content: str, filename: str) -> str:
         return content
 
 
-# ──────────────────────────────────────────────
-# 2. Core analyser
-# ──────────────────────────────────────────────
-
+# Core analyser
 # Passive damage sources that count as "passive" rather than "direct"
+# Have to manually set tags
 PASSIVE_SELF_TAGS = {
     "item: Life Orb",       # recoil on the user
     "item: Black Sludge",
@@ -103,7 +97,7 @@ PASSIVE_SELF_TAGS = {
     "move: Future Sight",   # passive-style delayed
 }
 
-# Sources that count as passive damage *dealt* to the foe
+# Sources that count as passive damage DEALT to the foe
 PASSIVE_DEALT_TAGS = {
     "drain",        # Leech Life / Giga Drain heals attacker, but the damage itself
                     # is still direct; "drain" appears on the heal line, not the damage line
@@ -139,8 +133,8 @@ def parse_hp(hp_str: str):
 
 def slot_to_name(slot_label: str) -> str:
     """
-    'p1a: Gyarados' → ('p1', 'Gyarados')
-    'p2b: Scream Tail' → ('p2', 'Scream Tail')
+    'p1a: Gyarados' -> ('p1', 'Gyarados')
+    'p2b: Scream Tail' -> ('p2', 'Scream Tail')
     """
     m = re.match(r"(p[12])[ab]:\s*(.+)", slot_label)
     if m:
@@ -162,14 +156,14 @@ def analyse(log_text: str) -> dict:
     """
     lines = log_text.splitlines()
 
-    players = {}   # p1/p2 → player name
+    players = {}   # p1/p2 -> player name
     winner = None
 
     # Track the active pokemon per slot
-    active = {}          # 'p1' / 'p2' → pokemon name currently in slot a
+    active = {}          # 'p1' / 'p2' -> pokemon name currently in slot a
     # Track current HP for each pokemon name (as percentage 0-100)
-    hp = defaultdict(lambda: 100.0)   # pokemon_name → current HP %
-    max_hp = {}          # pokemon_name → max HP (raw, if available)
+    hp = defaultdict(lambda: 100.0)   # pokemon_name -> current HP %
+    max_hp = {}          # pokemon_name -> max HP (raw, if available)
 
     stats = defaultdict(lambda: defaultdict(lambda: {
         "direct_dealt": 0.0,
@@ -180,7 +174,7 @@ def analyse(log_text: str) -> dict:
         "deaths": 0,
     }))
 
-    # We keep a small look-ahead buffer: damage events need to know
+    # Keep a small look-ahead buffer: damage events need to know
     # who just used a move so we can attribute the damage.
     last_move_user = None   # (player, pokemon_name) that last used a move
     last_damage_target = None  # (player, pokemon_name) that was last damaged
@@ -314,10 +308,7 @@ def analyse(log_text: str) -> dict:
     }
 
 
-# ──────────────────────────────────────────────
-# 3. Formatters
-# ──────────────────────────────────────────────
-
+# Formatters
 def _build_side_block(side: str, results: dict) -> str:
     """
     Return a monospace Discord block for one player's side.
@@ -394,7 +385,7 @@ def format_for_discord(results: dict) -> list[str]:
     )
 
     messages = [
-        f"📊 **Replay Analysis** — {header}\n{legend}",
+        f"**Replay Analysis** — {header}\n{legend}",
         _build_side_block("p1", results),
         _build_side_block("p2", results),
     ]
@@ -463,10 +454,9 @@ def print_results(results: dict):
     print("=" * 65)
 
 
-# ──────────────────────────────────────────────
-# 4. Entry point
-# ──────────────────────────────────────────────
-
+# MAIN RUN DIRECTLY FROM CMD
+# Use: python replay_analyzer.py (html/txt file)
+# Note that the file needs to be dir'd into or same dir
 def main():
     if len(sys.argv) < 2:
         print("Usage: python ps_replay_analyzer.py <replay_file.html|.txt>")

@@ -1,3 +1,8 @@
+"""
+Replies key-values for Choc to answer to
+Choc will automatically answer when a valid keyword is seen
+"""
+
 REPLIES = {
     "gay" : "Did somebody say the Gaylord Gastrodons?",
     "sssdl" : "Shitshow of a league",
@@ -17,7 +22,8 @@ REPLIES = {
     "weekends" : "too busy",
     "family" : "family strong",
     "fuck you" : "no fuck you",
-    "pokemon" : "no skill game for no skill people",
     "mons" : "braindead chat",
+    "brainrot" : "tung tung tung sahur",
+    "job" : "i'm working",
     "six" : "seven"
 }

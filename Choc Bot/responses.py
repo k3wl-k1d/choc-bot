@@ -1,3 +1,8 @@
+"""
+List of quotes for Choc
+Called when pinged
+"""
+
 RESPONSES = [
     "Its ChocolateLab",
     "Why does everyone always want to do things at dinner time??",
@@ -172,5 +177,12 @@ RESPONSES = [
     "You’re unblocked",
     "It just hurt to have the one person who I thought have my back…… not. Like really hurt",
     "Agree or disagree Shaved dicks ( well, area around) usually look bad",
-    "six seven"
+    "six seven",
+    "sdn",
+    "rsn",
+    "i'm coming out of retirement",
+    "i'm suing you",
+    "do NOT ping me again",
+    "blocked",
+    "stfu"
 ]
