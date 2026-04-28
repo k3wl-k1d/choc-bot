@@ -7,6 +7,7 @@ import reactions as reac
 import replies as repl
 import battlefactory_info as bf
 import pokemon_data_parser as p_data_parser
+import replay_analyzer as analyzer
 
 # Load bot token from an environment variable
 KEY = "CHOC_DISCORD_BOT_KEY"
@@ -15,9 +16,12 @@ TOKEN = os.getenv(KEY)
 # Dev script
 DEV = 513462153093840896
 
+# Analyzer constants
+ANALYZE_MAX_BYTES = 5 * 1024 * 1024 # 5 MB hard limit
+ANALYZE_VALID_EXTS = (".html", ".txt") # accepted file types
+
 # Get a list of all Pokemon names
 allPokemonNames = p_data_parser.parse_names(p_data_parser.file, p_data_parser.numPokemon)
-
 # Get stat dictionary and stat map from parser - BOTH DICTIONARIES
 allPokemonStats = p_data_parser.parse_stats(p_data_parser.file, p_data_parser.numPokemon)
 pokemonStatMap = p_data_parser.statMap
@@ -30,6 +34,7 @@ intents.members = True  # needed to resolve user mentions
 # Initialize bot client
 client = discord.Client(intents=intents)
 
+# Stats quiz game stats
 currentQuestion = None
 answerString = None
 failedAttempts = 0
@@ -68,7 +73,10 @@ async def on_message(message):
                     "-**!battlefactoryf** [League], [0, 1, or 2 (ALL, SINGLES, SPECIAL formats)], @opp: Sends you and your opponent a BattleFactory challenge based on the filters\n"
                     "-**!stop**: Stops the current action if busy")
                 
-
+            # Analyze replay
+            if msgContent.startswith("!analyze"):
+                await handle_analyze(message)
+            
             # Display a quick stat quiz
             if msgContent == "!stat":
                 pkTemp = random.randint(1,p_data_parser.numPokemon)
@@ -203,7 +211,7 @@ async def on_message(message):
                     await message.channel.send(f"Something may have gone wrong... Did you make a typo?")
             
             # Kill switch
-            if msgContent == "!kill Choc" and message.author.id == DEV:
+            if msgContent == "!kill choc" and message.author.id == DEV:
                 print(f"Killing Choc-bot. Requested by {message.author.id}")
                 await message.channel.send("WHAT?! NOOOOOOO!!!")
                 
@@ -226,6 +234,135 @@ async def on_message(message):
                 break  # Stop checking after the first match
     else:
         msgSent = False
+
+async def handle_analyze(message: discord.Message):
+    """
+    Handle the !analyze command.
+ 
+    Error cases handled:
+      - No attachment at all
+      - More than one attachment
+      - Wrong file extension (not .html or .txt)
+      - File too large (> ANALYZE_MAX_BYTES)
+      - File contains no valid battle-log data
+      - Corrupt / unreadable content (encoding errors, parse failures)
+      - Unexpected exceptions (logged + generic user message)
+    """
+    attachments = message.attachments
+ 
+    # Guard: must have one attachment
+    if not attachments:
+        await message.channel.send(
+            "❌ No file attached! Use `!analyze` with a `.html` or `.txt` "
+            "Pokemon Showdown replay file."
+        )
+        return
+ 
+    if len(attachments) > 1:
+        await message.channel.send(
+            "❌ Please attach **one** replay file at a time."
+        )
+        return
+ 
+    attachment = attachments[0]
+    filename   = attachment.filename
+ 
+    # Guard: extension
+    if not filename.lower().endswith(ANALYZE_VALID_EXTS):
+        await message.channel.send(
+            f"❌ Unsupported file type **{os.path.splitext(filename)[1] or '(none)'}**. "
+            f"Please attach a `.html` or `.txt` Showdown replay."
+        )
+        return
+ 
+    # Guard: file size
+    if attachment.size > ANALYZE_MAX_BYTES:
+        await message.channel.send(
+            f"❌ That file is too large ({attachment.size // 1024} KB). "
+            f"Replays should be well under {ANALYZE_MAX_BYTES // 1024 // 1024} MB."
+        )
+        return
+ 
+    # Download, decode
+    try:
+        rawBytes = await attachment.read()
+    except discord.HTTPException as exc:
+        print(f"[analyze] Failed to download attachment: {exc}")
+        await message.channel.send(
+            "❌ Couldn't download the file from Discord. Try again in a moment."
+        )
+        return
+ 
+    try:
+        content = rawBytes.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            content = rawBytes.decode("latin-1")   # fallback for older exports
+        except UnicodeDecodeError:
+            await message.channel.send(
+                "❌ Couldn't read that file — it doesn't appear to be a valid text file."
+            )
+            return
+ 
+    # Parse log
+    try:
+        log = analyzer.extract_log_from_text(content, filename)
+    except ValueError as exc:
+        await message.channel.send(f"❌ Couldn't parse the replay: {exc}")
+        return
+    except Exception as exc:
+        print(f"[analyze] Unexpected parse error for '{filename}': {exc}")
+        await message.channel.send(
+            "❌ Something went wrong reading the replay. "
+            "Make sure it's a valid Showdown export."
+        )
+        return
+ 
+    # Guard: check the parsed log
+    try:
+        results = analyzer.analyse(log)
+    except Exception as exc:
+        print(f"[analyze] Unexpected analysis error for '{filename}': {exc}")
+        await message.channel.send(
+            "❌ The replay parsed but the analysis failed. "
+            "It may be incomplete or from an unsupported format."
+        )
+        return
+ 
+    if not results["players"]:
+        await message.channel.send(
+            "❌ No player data found in that replay. "
+            "Is it a valid Showdown singles replay?"
+        )
+        return
+ 
+    if not results["p1"] and not results["p2"]:
+        await message.channel.send(
+            "❌ The replay has player data but no battle events. "
+            "It might be an empty or unstarted game."
+        )
+        return
+ 
+    # Format & send
+    try:
+        messages = analyzer.format_for_discord(results)
+    except Exception as exc:
+        print(f"[analyze] Formatting error: {exc}")
+        await message.channel.send(
+            "❌ Analysis succeeded but formatting failed. "
+            "This is a bug — yell at the dev."
+        )
+        return
+ 
+    print(f"[analyze] Successfully analyzed '{filename}' "
+          f"({results['players'].get('p1','?')} vs {results['players'].get('p2','?')})")
+ 
+    for msg in messages:
+        # Discord hard limit is 2000 chars; each block is well within that,
+        # but truncate as a last resort rather than crash.
+        if len(msg) > 2000:
+            msg = msg[:1990] + "\n…"
+        await message.channel.send(msg)
 
 # Run bot
 client.run(TOKEN)
