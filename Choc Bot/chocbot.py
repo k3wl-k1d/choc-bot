@@ -8,6 +8,7 @@ import replies as repl
 import battlefactory_info as bf
 import pokemon_data_parser as p_data_parser
 import replay_analyzer as analyzer
+from dotenv import load_dotenv
 
 """
 Chocbot does a lot of stuff, should probably be more modular
@@ -16,11 +17,10 @@ Let's just say it's a TODO
 """
 
 # Load bot token from an environment variable
-KEY = "CHOC_DISCORD_BOT_KEY"
-TOKEN = os.getenv(KEY)
+load_dotenv()
 
-# Dev script
-DEV = 513462153093840896
+TOKEN = os.getenv("CHOC_DISCORD_BOT_KEY")
+DEV = int(os.getenv("CHOC_DEV_ID"))
 
 # Analyzer constants
 ANALYZE_MAX_BYTES = 5 * 1024 * 1024 # 5 MB hard limit
