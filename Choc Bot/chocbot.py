@@ -367,7 +367,7 @@ async def handle_analyze(message: discord.Message):
         print(f"[analyze] Formatting error: {exc}")
         await message.channel.send(
             "❌ Analysis succeeded but formatting failed. "
-            "This is a bug — yell at the dev."
+            "This is a bug - yell at the dev."
         )
         return
  

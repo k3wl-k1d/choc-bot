@@ -308,7 +308,7 @@ def analyse(log_text: str) -> dict:
     }
 
 
-# Formatters
+# Formatters for Discord specifically
 def _build_side_block(side: str, results: dict) -> str:
     """
     Return a monospace Discord block for one player's side.
