@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Pokemon Showdown Replay Analyzer
---------------------------------
+---------------------------------
 Parses .html or .txt replay files and outputs per-Pokemon stats:
-  - Damage Dealt   (direct from moves | passive e.g. Life Orb recoil dealt to foe)
-  - Damage Taken   (direct from opponent moves | passive e.g. Life Orb recoil to self)
+  - Damage Dealt   (direct from moves | passive i.e. Life Orb recoil dealt to foe)
+  - Damage Taken   (direct from opponent moves | passive i.e. Life Orb recoil to self)
   - Kills          (fainted opponents)
   - Deaths         (self fainted)
 
@@ -17,7 +17,8 @@ import re
 from html.parser import HTMLParser
 from collections import defaultdict
 
-# Extract the raw log text from HTML or txt
+
+# Extract the raw log text from HTML or TXT
 class _BattleLogExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -71,7 +72,6 @@ def extract_log_from_text(content: str, filename: str) -> str:
 
 # Core analyser
 # Passive damage sources that count as "passive" rather than "direct"
-# Have to manually set tags
 PASSIVE_SELF_TAGS = {
     "item: Life Orb",       # recoil on the user
     "item: Black Sludge",
@@ -95,9 +95,10 @@ PASSIVE_SELF_TAGS = {
     "hazard: Stealth Rock",
     "hazard: Toxic Spikes",
     "move: Future Sight",   # passive-style delayed
+    "move: Doom Desire",
 }
 
-# Sources that count as passive damage DEALT to the foe
+# Sources that count as passive damage *dealt* to the foe
 PASSIVE_DEALT_TAGS = {
     "drain",        # Leech Life / Giga Drain heals attacker, but the damage itself
                     # is still direct; "drain" appears on the heal line, not the damage line
@@ -118,28 +119,42 @@ PASSIVE_DEALT_TAGS = {
 
 def parse_hp(hp_str: str):
     """
-    Parse HP strings like '195/280', '60/100', '0 fnt', '100/100'.
+    Parse HP strings like '195/280', '60/100', '0 fnt', '100/100', '100 psn'.
     Returns (current, max) as floats. max may be None if format is percentage.
     """
     hp_str = hp_str.strip()
     if "fnt" in hp_str:
         return 0, None
+    # Strip status conditions appended to HP i.e. "172/280 psn", "100 brn"
+    hp_str = hp_str.split(" ")[0]
     if "/" in hp_str:
         parts = hp_str.split("/")
         return float(parts[0]), float(parts[1])
-    # bare percentage or number
     return float(hp_str), None
 
 
-def slot_to_name(slot_label: str) -> str:
+def slot_to_name(slot_label: str):
     """
-    'p1a: Gyarados' -> ('p1', 'Gyarados')
-    'p2b: Scream Tail' -> ('p2', 'Scream Tail')
+    'p1a: Gyarados'     -> ('p1', 'Gyarados')
+    'p2b: Scream Tail'  -> ('p2', 'Scream Tail')
+    'p1a: World B Flat' -> ('p1', 'World B Flat')  ← nickname, resolved by caller
     """
     m = re.match(r"(p[12])[ab]:\s*(.+)", slot_label)
     if m:
         return m.group(1), m.group(2)
     return None, slot_label
+
+
+def species_from_info(mon_info: str) -> str:
+    """
+    Extract the species name from the mon_info field of a switch line.
+    i.e. 'Sigilyph, M'     -> 'Sigilyph'
+         'Lopunny-Mega, F'  -> 'Lopunny-Mega'
+         'Articuno-Galar'   -> 'Articuno-Galar'
+         'Great Tusk'       -> 'Great Tusk'
+    The species is always the first comma-separated token.
+    """
+    return mon_info.split(",")[0].strip()
 
 
 def analyse(log_text: str) -> dict:
@@ -160,10 +175,12 @@ def analyse(log_text: str) -> dict:
     winner = None
 
     # Track the active pokemon per slot
-    active = {}          # 'p1' / 'p2' -> pokemon name currently in slot a
+    active = {}          # 'p1' / 'p2' -> species name currently in slot a
+    # Map nickname -> species so all later log lines resolve correctly
+    nickname_map = {}    # (player, nickname) -> species name
     # Track current HP for each pokemon name (as percentage 0-100)
-    hp = defaultdict(lambda: 100.0)   # pokemon_name -> current HP %
-    max_hp = {}          # pokemon_name -> max HP (raw, if available)
+    hp = defaultdict(lambda: 100.0)   # species_name -> current HP %
+    max_hp = {}          # species_name -> max HP (raw, if available)
 
     stats = defaultdict(lambda: defaultdict(lambda: {
         "direct_dealt": 0.0,
@@ -179,8 +196,32 @@ def analyse(log_text: str) -> dict:
     last_move_user = None   # (player, pokemon_name) that last used a move
     last_damage_target = None  # (player, pokemon_name) that was last damaged
 
-    def record_damage(target_player, target_mon, amount, is_passive):
-        """Record damage and attribute dealt-damage to the *other* side's active mon."""
+    # Track who applied each status to each Pokemon so passive damage
+    # (burn, poison, toxic) is credited to the inflicter, not the current active mon.
+    # key: (player, mon)  value: (opponent_player, inflicter_species)
+    status_inflicted_by = {}
+
+    # Track who set each entry hazard on each side so hazard chip damage
+    # (Spikes, Stealth Rock, Toxic Spikes) is credited to the setter.
+    # key: (player_side_suffering, hazard_tag)  value: (opponent_player, setter_species)
+    hazard_set_by = {}
+
+    # Passive from-tags that should credit status_inflicted_by instead of active mon
+    STATUS_DAMAGE_TAGS = {"[from] psn", "[from] tox", "[from] brn"}
+    # Passive from-tags that should credit hazard_set_by instead of active mon
+    HAZARD_DAMAGE_TAGS = {
+        "[from] Spikes", "[from] hazard: Spikes",
+        "[from] Stealth Rock", "[from] hazard: Stealth Rock",
+        "[from] Toxic Spikes", "[from] hazard: Toxic Spikes",
+    }
+
+    def record_damage(target_player, target_mon, amount, is_passive, dealer=None):
+        """
+        Record damage taken by target_mon and credit dealt-damage to dealer.
+        dealer: optional (player, species) tuple for explicit attribution
+                (used for status/hazard damage where the inflicter may be off-field).
+                If None, falls back to last_move_user then active opponent.
+        """
         opponent = "p2" if target_player == "p1" else "p1"
 
         # Damage taken by target
@@ -189,22 +230,26 @@ def analyse(log_text: str) -> dict:
         else:
             stats[target_player][target_mon]["direct_taken"] += amount
 
-        # Attribute dealt to whoever caused it
-        if is_passive:
-            # Passive damage dealt: attribute to active Pokemon of the opponent
+        # Attribute dealt
+        if dealer:
+            dealer_player, dealer_mon = dealer
+            stats[dealer_player][dealer_mon]["passive_dealt"] += amount
+        elif is_passive:
             dealer_mon = active.get(opponent)
             if dealer_mon:
                 stats[opponent][dealer_mon]["passive_dealt"] += amount
         else:
-            # Direct damage: attribute to the last move user
             if last_move_user and last_move_user[0] == opponent:
                 dealer_mon = last_move_user[1]
                 stats[opponent][dealer_mon]["direct_dealt"] += amount
             else:
-                # Fall back to active pokemon of opponent
                 dealer_mon = active.get(opponent)
                 if dealer_mon:
                     stats[opponent][dealer_mon]["direct_dealt"] += amount
+
+    def resolve(player, name):
+        """Return the species name for a given player+name (which may be a nickname)."""
+        return nickname_map.get((player, name), name)
 
     for line in lines:
         line = line.rstrip()
@@ -216,21 +261,28 @@ def analyse(log_text: str) -> dict:
             continue
         cmd = parts[1]
 
-        # ── player identification ──────────────────
+        # Player identification
         if cmd == "player" and len(parts) >= 4:
             slot = parts[2]   # 'p1' or 'p2'
             name = parts[3]
-            players[slot] = name
+            if name:           # ignore empty-name lines that appear mid-replay
+                players[slot] = name
 
-        # ── switch / drag (update active slot) ────
+        # Switch / Drag (update active slot)
         elif cmd in ("switch", "drag", "replace") and len(parts) >= 4:
-            slot_label = parts[2]    # e.g. 'p1a: Gyarados'
-            mon_info   = parts[3]    # e.g. 'Gyarados, L79, F'
+            slot_label = parts[2]
+            mon_info   = parts[3]  
             hp_str     = parts[4] if len(parts) > 4 else "100/100"
 
-            player, mon = slot_to_name(slot_label)
+            player, nickname = slot_to_name(slot_label)
+            species = species_from_info(mon_info)   # always the real species name
+
             if player:
-                active[player] = mon
+                # Map nickname -> species (nickname == species when no nickname used)
+                nickname_map[(player, nickname)] = species
+                active[player] = species
+
+            mon = species  # use species as the canonical key throughout
 
             # Record initial HP on switch-in
             cur, mx = parse_hp(hp_str)
@@ -243,22 +295,73 @@ def analyse(log_text: str) -> dict:
             # Ensure this pokemon appears in stats
             _ = stats[player][mon]
 
-        # ── move (track last move user) ───────────
+        # Move (track last move user)
         elif cmd == "move" and len(parts) >= 3:
             slot_label = parts[2]
-            player, mon = slot_to_name(slot_label)
+            player, name = slot_to_name(slot_label)
             if player:
-                last_move_user = (player, mon)
+                last_move_user = (player, resolve(player, name))
 
-        # ── damage ────────────────────────────────
+        # Status applied (poison/burn/etc.)
+        # Credit the inflicter (last move user from the opponent) so that
+        # future [from] psn / [from] brn damage goes to them, not whoever
+        # happens to be active when the chip fires.
+        elif cmd == "-status" and len(parts) >= 4:
+            slot_label  = parts[2]
+            status_type = parts[3]   # 'psn', 'tox', 'brn', 'par', etc.
+            player, name = slot_to_name(slot_label)
+            if player and status_type in ("psn", "tox", "brn"):
+                mon = resolve(player, name)
+                opponent = "p2" if player == "p1" else "p1"
+                # Credit whoever just used the inflicting move; fall back to active
+                if last_move_user and last_move_user[0] == opponent:
+                    inflicter = last_move_user
+                else:
+                    inflicter_mon = active.get(opponent)
+                    inflicter = (opponent, inflicter_mon) if inflicter_mon else None
+                if inflicter:
+                    status_inflicted_by[(player, mon)] = inflicter
+
+        # Hazard set (Spikes / Stealth Rock / Toxic Spikes)
+        # The move line just before this tells us the setter.
+        elif cmd == "-sidestart" and len(parts) >= 4:
+            # parts[2] = 'p1: Shirmp' — extract the player side
+            side_player = parts[2].split(":")[0].strip()   # 'p1' or 'p2'
+            hazard_info = parts[3]   # i.e. 'move: Toxic Spikes', 'Spikes'
+            # Normalise to a tag that will appear in damage lines
+            if "Toxic Spikes" in hazard_info:
+                hazard_tag = "[from] Toxic Spikes"
+            elif "Spikes" in hazard_info:
+                hazard_tag = "[from] Spikes"
+            elif "Stealth Rock" in hazard_info:
+                hazard_tag = "[from] Stealth Rock"
+            else:
+                hazard_tag = None
+            if hazard_tag and last_move_user:
+                # last_move_user is the setter (they just used the hazard move)
+                hazard_set_by[(side_player, hazard_tag)] = last_move_user
+
+        # Hazard cleared (Rapid Spin / Defog)
+        elif cmd == "-sideend" and len(parts) >= 4:
+            side_player = parts[2].split(":")[0].strip()
+            hazard_info = parts[3]
+            if "Toxic Spikes" in hazard_info:
+                hazard_set_by.pop((side_player, "[from] Toxic Spikes"), None)
+            elif "Spikes" in hazard_info:
+                hazard_set_by.pop((side_player, "[from] Spikes"), None)
+            elif "Stealth Rock" in hazard_info:
+                hazard_set_by.pop((side_player, "[from] Stealth Rock"), None)
+
+        # Damage
         elif cmd == "-damage" and len(parts) >= 4:
             slot_label = parts[2]
             hp_str     = parts[3]
             from_tag   = parts[4] if len(parts) > 4 else ""
 
-            player, mon = slot_to_name(slot_label)
+            player, name = slot_to_name(slot_label)
             if not player:
                 continue
+            mon = resolve(player, name)
 
             # Compute damage percentage
             cur, mx = parse_hp(hp_str)
@@ -276,27 +379,59 @@ def analyse(log_text: str) -> dict:
             # Determine if passive
             is_passive = any(tag in from_tag for tag in PASSIVE_SELF_TAGS)
 
-            record_damage(player, mon, damage_pct, is_passive)
+            # Resolve explicit dealer for status/hazard chip damage so the
+            # credit goes to the original inflicter even if they're off-field.
+            dealer = None
+            if from_tag in STATUS_DAMAGE_TAGS:
+                dealer = status_inflicted_by.get((player, mon))
+            elif from_tag in HAZARD_DAMAGE_TAGS:
+                dealer = hazard_set_by.get((player, from_tag))
+
+            record_damage(player, mon, damage_pct, is_passive, dealer=dealer)
             last_damage_target = (player, mon)
 
-        # ── faint ─────────────────────────────────
+        # Faint 
         elif cmd == "faint" and len(parts) >= 3:
             slot_label = parts[2]
-            player, mon = slot_to_name(slot_label)
+            player, name = slot_to_name(slot_label)
             if not player:
                 continue
+            mon = resolve(player, name)
 
             stats[player][mon]["deaths"] += 1
 
-            # The killer is the active pokemon of the opponent
             opponent = "p2" if player == "p1" else "p1"
-            killer = active.get(opponent)
-            if killer:
-                stats[opponent][killer]["kills"] += 1
+
+            # If the last damage this mon took was from a status or hazard,
+            # credit the kill to the original inflicter rather than the active mon.
+            killer = None
+            if last_damage_target == (player, mon):
+                # Check if the previous damage line had a status/hazard tag —
+                # we do this by seeing if status_inflicted_by or hazard_set_by
+                # has an entry, and the mon's HP reached 0 from that source.
+                killer_entry = status_inflicted_by.get((player, mon))
+                if killer_entry is None:
+                    # Check hazards, if they were the last source, hp is 0 now
+                    for hazard_tag in HAZARD_DAMAGE_TAGS:
+                        entry = hazard_set_by.get((player, hazard_tag))
+                        if entry:
+                            killer_entry = entry
+                            break
+
+            if killer_entry:
+                killer_player, killer_mon = killer_entry
+                stats[killer_player][killer_mon]["kills"] += 1
+            else:
+                # Default: active opponent gets the kill
+                killer = active.get(opponent)
+                if killer:
+                    stats[opponent][killer]["kills"] += 1
 
             hp[mon] = 0
+            # Clean up status tracking for this mon
+            status_inflicted_by.pop((player, mon), None)
 
-        # ── winner ────────────────────────────────
+        # Winner 
         elif cmd == "win" and len(parts) >= 3:
             winner = parts[2]
 
@@ -308,7 +443,7 @@ def analyse(log_text: str) -> dict:
     }
 
 
-# Formatters for Discord specifically
+# Formatters
 def _build_side_block(side: str, results: dict) -> str:
     """
     Return a monospace Discord block for one player's side.
@@ -363,7 +498,7 @@ def format_for_discord(results: dict) -> list[str]:
     p1name  = players.get("p1", "Player 1")
     p2name  = players.get("p2", "Player 2")
 
-    # ── Header message ────────────────────────────────────────────────────
+    # Header message
     if winner:
         trophy = "🏆"
         if winner == p1name:
@@ -454,9 +589,8 @@ def print_results(results: dict):
     print("=" * 65)
 
 
-# MAIN RUN DIRECTLY FROM CMD
-# Use: python replay_analyzer.py (html/txt file)
-# Note that the file needs to be dir'd into or same dir
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python ps_replay_analyzer.py <replay_file.html|.txt>")
