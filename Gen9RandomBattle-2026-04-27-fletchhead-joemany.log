@@ -1,0 +1,240 @@
+|j|☆Joe Many
+|t:|1777338757
+|gametype|singles
+|player|p1|FletchHead|lana|
+|player|p2|Joe Many|skierf|
+|gen|9
+|tier|[Gen 9] Random Battle
+|rule|Species Clause: Limit one of each Pokémon
+|rule|HP Percentage Mod: HP is shown in percentages
+|rule|Sleep Clause Mod: Limit one foe put to sleep
+|rule|Illusion Level Mod: Illusion disguises the Pokémon's true level
+|
+|t:|1777338757
+|teamsize|p1|6
+|teamsize|p2|6
+|start
+|switch|p1a: Gyarados|Gyarados, L79, F|280\/280
+|switch|p2a: Scream Tail|Scream Tail, L84|100\/100
+|turn|1
+|
+|t:|1777338765
+|-end|p2a: Scream Tail|Protosynthesis|[silent]
+|switch|p2a: Blissey|Blissey, L85, F|100\/100
+|move|p1a: Gyarados|Dragon Dance|p1a: Gyarados
+|-boost|p1a: Gyarados|atk|1
+|-boost|p1a: Gyarados|spe|1
+|
+|upkeep
+|turn|2
+|j| jafen
+|
+|t:|1777338771
+|move|p1a: Gyarados|Dragon Dance|p1a: Gyarados
+|-boost|p1a: Gyarados|atk|1
+|-boost|p1a: Gyarados|spe|1
+|move|p2a: Blissey|Seismic Toss|p1a: Gyarados
+|-damage|p1a: Gyarados|195\/280
+|
+|upkeep
+|turn|3
+|
+|t:|1777338774
+|move|p1a: Gyarados|Waterfall|p2a: Blissey
+|-crit|p2a: Blissey
+|-damage|p2a: Blissey|0 fnt
+|faint|p2a: Blissey
+|-ability|p1a: Gyarados|Moxie|boost
+|-boost|p1a: Gyarados|atk|1
+|
+|upkeep
+|
+|t:|1777338778
+|switch|p2a: Urshifu|Urshifu-Rapid-Strike, L75, F|100\/100
+|turn|4
+|
+|t:|1777338782
+|-terastallize|p1a: Gyarados|Flying
+|-terastallize|p2a: Urshifu|Water
+|move|p1a: Gyarados|Tera Blast|p2a: Urshifu|[anim] Tera Blast Flying
+|-damage|p2a: Urshifu|0 fnt
+|faint|p2a: Urshifu
+|-ability|p1a: Gyarados|Moxie|boost
+|-boost|p1a: Gyarados|atk|1
+|
+|upkeep
+|
+|t:|1777338787
+|switch|p2a: Scream Tail|Scream Tail, L84|100\/100
+|turn|5
+|
+|t:|1777338789
+|move|p1a: Gyarados|Waterfall|p2a: Scream Tail
+|-damage|p2a: Scream Tail|27\/100
+|cant|p2a: Scream Tail|flinch
+|
+|-heal|p2a: Scream Tail|33\/100|[from] item: Leftovers
+|upkeep
+|turn|6
+|
+|t:|1777338794
+|-end|p2a: Scream Tail|Protosynthesis|[silent]
+|switch|p2a: Hariyama|Hariyama, L87, F|100\/100
+|move|p1a: Gyarados|Waterfall|p2a: Hariyama
+|-damage|p2a: Hariyama|19\/100
+|
+|upkeep
+|turn|7
+|
+|t:|1777338799
+|move|p1a: Gyarados|Waterfall|p2a: Hariyama
+|-damage|p2a: Hariyama|0 fnt
+|faint|p2a: Hariyama
+|-ability|p1a: Gyarados|Moxie|boost
+|-boost|p1a: Gyarados|atk|1
+|
+|upkeep
+|
+|t:|1777338801
+|switch|p2a: Meowscarada|Meowscarada, L78, F|100\/100
+|turn|8
+|
+|t:|1777338813
+|switch|p1a: Eternatus|Eternatus, L69|308\/308
+|-ability|p1a: Eternatus|Pressure
+|switch|p2a: Scream Tail|Scream Tail, L84|33\/100
+|
+|-heal|p2a: Scream Tail|39\/100|[from] item: Leftovers
+|upkeep
+|turn|9
+|
+|t:|1777338819
+|switch|p1a: Gardevoir|Gardevoir, L83, M|249\/249
+|move|p2a: Scream Tail|Wish|p2a: Scream Tail
+|
+|-heal|p2a: Scream Tail|45\/100|[from] item: Leftovers
+|upkeep
+|turn|10
+|
+|t:|1777338822
+|move|p2a: Scream Tail|Protect|p2a: Scream Tail
+|-singleturn|p2a: Scream Tail|Protect
+|move|p1a: Gardevoir|Moonblast|p2a: Scream Tail
+|-activate|p2a: Scream Tail|move: Protect
+|
+|-heal|p2a: Scream Tail|95\/100|[from] move: Wish|[wisher] Scream Tail
+|-heal|p2a: Scream Tail|100\/100|[from] item: Leftovers
+|upkeep
+|turn|11
+|
+|t:|1777338829
+|move|p2a: Scream Tail|Encore|p1a: Gardevoir
+|-start|p1a: Gardevoir|Encore
+|move|p1a: Gardevoir|Moonblast|p2a: Scream Tail
+|-damage|p2a: Scream Tail|60\/100
+|-damage|p1a: Gardevoir|225\/249|[from] item: Life Orb
+|
+|-heal|p2a: Scream Tail|66\/100|[from] item: Leftovers
+|upkeep
+|turn|12
+|
+|t:|1777338833
+|move|p2a: Scream Tail|Encore||[still]
+|-fail|p2a: Scream Tail
+|move|p1a: Gardevoir|Moonblast|p2a: Scream Tail
+|-damage|p2a: Scream Tail|30\/100
+|-damage|p1a: Gardevoir|201\/249|[from] item: Life Orb
+|
+|-heal|p2a: Scream Tail|36\/100|[from] item: Leftovers
+|upkeep
+|turn|13
+|
+|t:|1777338835
+|-end|p2a: Scream Tail|Protosynthesis|[silent]
+|switch|p2a: Houndoom|Houndoom, L87, M|100\/100
+|-ability|p1a: Gardevoir|Flash Fire|Trace|[from] ability: Trace|[of] p2a: Houndoom
+|move|p1a: Gardevoir|Moonblast|p2a: Houndoom
+|-damage|p2a: Houndoom|37\/100
+|-damage|p1a: Gardevoir|177\/249|[from] item: Life Orb
+|
+|-end|p1a: Gardevoir|Encore
+|upkeep
+|turn|14
+|
+|t:|1777338845
+|move|p2a: Houndoom|Nasty Plot|p2a: Houndoom
+|-boost|p2a: Houndoom|spa|2
+|move|p1a: Gardevoir|Moonblast|p2a: Houndoom
+|-damage|p2a: Houndoom|0 fnt
+|faint|p2a: Houndoom
+|-damage|p1a: Gardevoir|153\/249|[from] item: Life Orb
+|
+|upkeep
+|
+|t:|1777338848
+|switch|p2a: Meowscarada|Meowscarada, L78, F|100\/100
+|turn|15
+|
+|t:|1777338853
+|switch|p1a: Lokix|Lokix, L82, M|251\/251
+|move|p2a: Meowscarada|Knock Off|p1a: Lokix
+|-start|p2a: Meowscarada|typechange|Dark|[from] ability: Protean
+|-resisted|p1a: Lokix
+|-damage|p1a: Lokix|175\/251
+|-enditem|p1a: Lokix|Life Orb|[from] move: Knock Off|[of] p2a: Meowscarada
+|
+|upkeep
+|turn|16
+|
+|t:|1777338862
+|switch|p2a: Scream Tail|Scream Tail, L84|36\/100
+|move|p1a: Lokix|Leech Life|p2a: Scream Tail
+|-damage|p2a: Scream Tail|14\/100
+|-heal|p1a: Lokix|211\/251|[from] drain|[of] p2a: Scream Tail
+|
+|-heal|p2a: Scream Tail|20\/100|[from] item: Leftovers
+|upkeep
+|turn|17
+|
+|t:|1777338866
+|move|p2a: Scream Tail|Dazzling Gleam|p1a: Lokix
+|-supereffective|p1a: Lokix
+|-damage|p1a: Lokix|31\/251
+|move|p1a: Lokix|Leech Life|p2a: Scream Tail
+|-damage|p2a: Scream Tail|0 fnt
+|-heal|p1a: Lokix|64\/251|[from] drain|[of] p2a: Scream Tail
+|faint|p2a: Scream Tail
+|-end|p2a: Scream Tail|Protosynthesis|[silent]
+|
+|upkeep
+|
+|t:|1777338868
+|switch|p2a: Meowscarada|Meowscarada, L78, F|100\/100
+|turn|18
+|
+|t:|1777338871
+|move|p2a: Meowscarada|Triple Axel|p1a: Lokix
+|-start|p2a: Meowscarada|typechange|Ice|[from] ability: Protean
+|-crit|p1a: Lokix
+|-damage|p1a: Lokix|7\/251
+|-damage|p1a: Lokix|0 fnt
+|faint|p1a: Lokix
+|-hitcount|p1: Lokix|2
+|
+|upkeep
+|
+|t:|1777338874
+|switch|p1a: Deoxys|Deoxys, L74|196\/196
+|-ability|p1a: Deoxys|Pressure
+|turn|19
+|
+|t:|1777338876
+|move|p1a: Deoxys|Superpower|p2a: Meowscarada
+|-supereffective|p2a: Meowscarada
+|-damage|p2a: Meowscarada|0 fnt
+|-unboost|p1a: Deoxys|atk|1
+|-unboost|p1a: Deoxys|def|1
+|faint|p2a: Meowscarada
+|-damage|p1a: Deoxys|177\/196|[from] item: Life Orb
+|
+|win|FletchHead</script>
