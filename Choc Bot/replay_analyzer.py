@@ -3,8 +3,8 @@
 Pokemon Showdown Replay Analyzer
 ---------------------------------
 Parses .html or .txt replay files and outputs per-Pokemon stats:
-  - Damage Dealt   (direct from moves | passive i.e. Life Orb recoil dealt to foe)
-  - Damage Taken   (direct from opponent moves | passive i.e. Life Orb recoil to self)
+  - Damage Dealt   (direct from moves | passive dealt to foe)
+  - Damage Taken   (direct from opponent moves | passive self-inflicted)
   - Kills          (fainted opponents)
   - Deaths         (self fainted)
 
@@ -71,50 +71,45 @@ def extract_log_from_text(content: str, filename: str) -> str:
 
 
 # Core analyser
-# Passive damage sources that count as "passive" rather than "direct"
-PASSIVE_SELF_TAGS = {
-    "item: Life Orb",       # recoil on the user
+
+# from-tags where the damage is self-inflicted — no opponent gets dealt credit.
+# Covers: move recoil, item recoil, and move-specific recoil strings used by Showdown.
+# Rocky Helmet is NOT here — it has an [of] field and credits the helmet holder.
+SELF_INFLICTED_TAGS = {
+    "Recoil",
+    "recoil",
+    "item: Life Orb",
     "item: Black Sludge",
     "item: Sticky Barb",
-    "recoil",               # generic recoil
-    "Recoil",
-    "move: Curse",
-    "move: Substitute",
     "item: Flame Orb",
     "item: Toxic Orb",
-    "brn",                  # burn
-    "psn",                  # poison
-    "tox",                  # bad poison (toxic)
-    "confusion",
-    "Salt Cure",
-    "Leech Seed",
-    "weather: Sandstorm",
-    "weather: Hail",
-    "weather: Snow",
-    "hazard: Spikes",
-    "hazard: Stealth Rock",
-    "hazard: Toxic Spikes",
-    "move: Future Sight",   # passive-style delayed
-    "move: Doom Desire",
+    "steelbeam",
+    "mindblown",
+    "move: Curse",
+    "move: Substitute",
 }
 
-# Sources that count as passive damage *dealt* to the foe
-PASSIVE_DEALT_TAGS = {
-    "drain",        # Leech Life / Giga Drain heals attacker, but the damage itself
-                    # is still direct; "drain" appears on the heal line, not the damage line
-    "Leech Seed",
-    "Salt Cure",
-    "brn",
-    "psn",
-    "tox",
-    "confusion",
-    "weather: Sandstorm",
-    "weather: Hail",
-    "weather: Snow",
-    "hazard: Spikes",
-    "hazard: Stealth Rock",
-    "hazard: Toxic Spikes",
+# Passive damage taken (opponent-sourced, indirect).
+PASSIVE_SELF_TAGS = {
+    "brn", "psn", "tox", "confusion", "Salt Cure", "Leech Seed",
+    "weather: Sandstorm", "weather: Hail", "weather: Snow",
+    "hazard: Spikes", "hazard: Stealth Rock", "hazard: Toxic Spikes",
+    "move: Future Sight", "move: Doom Desire",
+    "move: Infestation", "move: Bind", "move: Wrap", "move: Fire Spin",
+    "move: Whirlpool", "move: Magma Storm", "move: Sand Tomb",
+    "move: Thunder Cage", "move: Clamp", "move: Snap Trap",
 }
+
+# Trapping move from-tags — credited to whoever used the move, tracked via trapping_inflicted_by.
+TRAPPING_MOVE_TAGS = {
+    "[from] move: Infestation", "[from] move: Bind", "[from] move: Wrap",
+    "[from] move: Fire Spin", "[from] move: Whirlpool", "[from] move: Magma Storm",
+    "[from] move: Sand Tomb", "[from] move: Thunder Cage", "[from] move: Clamp",
+    "[from] move: Snap Trap",
+}
+
+# Status inflicted by the holder's own item — never credit the opponent.
+SELF_INFLICTED_STATUS_ITEMS = {"item: Flame Orb", "item: Toxic Orb"}
 
 
 def parse_hp(hp_str: str):
@@ -193,18 +188,35 @@ def analyse(log_text: str) -> dict:
 
     # Keep a small look-ahead buffer: damage events need to know
     # who just used a move so we can attribute the damage.
-    last_move_user = None   # (player, pokemon_name) that last used a move
-    last_damage_target = None  # (player, pokemon_name) that was last damaged
+    last_move_user = None   # (player, species) that last used a move
+
+    # Track the from_tag of the most recent damage event per (player, mon).
+    # Used in the faint block to know whether the killing hit was a move,
+    # status, or hazard — without being confused by recoil on the attacker.
+    last_hit_from_tag = {}  # (player, mon) -> from_tag string of last damage
+
+    # The Substitute move shows up as:
+    #   |move|...|Substitute|...
+    #   |-start|...|Substitute
+    #   |-damage|...|76/100       <- self-cost, no [from] tag
+    # We must skip that damage line so it isn't credited to the opponent.
+    skip_next_damage_as_sub_cost = set()  # set of (player, mon)
 
     # Track who applied each status to each Pokemon so passive damage
     # (burn, poison, toxic) is credited to the inflicter, not the current active mon.
     # key: (player, mon)  value: (opponent_player, inflicter_species)
     status_inflicted_by = {}
 
+    # Track who applied a trapping move so chip ticks credit the trapper off-field.
+    trapping_inflicted_by = {}  # (player, mon) -> (trapper_player, trapper_species)
+
     # Track who set each entry hazard on each side so hazard chip damage
     # (Spikes, Stealth Rock, Toxic Spikes) is credited to the setter.
     # key: (player_side_suffering, hazard_tag)  value: (opponent_player, setter_species)
     hazard_set_by = {}
+
+    # Track whether the last hit on each (player, mon) was self-inflicted.
+    last_hit_self_inflicted = {}  # (player, mon) -> bool
 
     # Passive from-tags that should credit status_inflicted_by instead of active mon
     STATUS_DAMAGE_TAGS = {"[from] psn", "[from] tox", "[from] brn"}
@@ -215,14 +227,19 @@ def analyse(log_text: str) -> dict:
         "[from] Toxic Spikes", "[from] hazard: Toxic Spikes",
     }
 
-    def record_damage(target_player, target_mon, amount, is_passive, dealer=None):
+    def record_damage(target_player, target_mon, amount, is_passive,
+                      dealer=None, is_self_inflicted=False):
         """
         Record damage taken by target_mon and credit dealt-damage to dealer.
-        dealer: optional (player, species) tuple for explicit attribution
-                (used for status/hazard damage where the inflicter may be off-field).
-                If None, falls back to last_move_user then active opponent.
+        dealer: optional (player, species) for explicit attribution (status/hazard).
+        is_self_inflicted: if True, no opponent gets dealt credit at all.
         """
         opponent = "p2" if target_player == "p1" else "p1"
+
+        # Self-inflicted: only passive_taken, no opponent credit.
+        if is_self_inflicted:
+            stats[target_player][target_mon]["passive_taken"] += amount
+            return
 
         # Damage taken by target
         if is_passive:
@@ -278,7 +295,11 @@ def analyse(log_text: str) -> dict:
             species = species_from_info(mon_info)   # always the real species name
 
             if player:
-                # Map nickname -> species (nickname == species when no nickname used)
+                # If this species is already known as a mega/forme alias, resolve
+                # it back to the base species so stats stay on one row.
+                # e.g. 'Lopunny-Mega' → 'Lopunny' after the first detailschange.
+                species = nickname_map.get((player, species), species)
+                # Map nickname -> species
                 nickname_map[(player, nickname)] = species
                 active[player] = species
 
@@ -295,6 +316,22 @@ def analyse(log_text: str) -> dict:
             # Ensure this pokemon appears in stats
             _ = stats[player][mon]
 
+        # Forme / mega evolution change
+        # e.g. |detailschange|p2a: Bunny Gesserit|Lopunny-Mega, F
+        # The Pokemon is the same individual — alias the mega name back to the
+        # base species so all subsequent damage lines stay on one row.
+        elif cmd == "detailschange" and len(parts) >= 4:
+            slot_label   = parts[2]   # 'p2a: Bunny Gesserit'
+            new_info     = parts[3]   # 'Lopunny-Mega, F'
+            player, nickname = slot_to_name(slot_label)
+            if player:
+                new_species  = species_from_info(new_info)
+                base_species = resolve(player, nickname)   # what we already track it as
+                # Point the mega name back to the base species key so any line
+                # that references the new forme name resolves to the same entry.
+                nickname_map[(player, new_species)] = base_species
+                # active slot is still the same mon, no change needed
+
         # Move (track last move user)
         elif cmd == "move" and len(parts) >= 3:
             slot_label = parts[2]
@@ -302,25 +339,41 @@ def analyse(log_text: str) -> dict:
             if player:
                 last_move_user = (player, resolve(player, name))
 
+        # Turn boundary — reset move tracking so last_move_user never
+        # bleeds across turns and pollutes status/damage attribution.
+        elif cmd == "turn":
+            last_move_user = None
+
         # Status applied (poison/burn/etc.)
-        # Credit the inflicter (last move user from the opponent) so that
-        # future [from] psn / [from] brn damage goes to them, not whoever
-        # happens to be active when the chip fires.
+        # Track who inflicted the status so future chip damage is credited correctly.
+        # Self-inflicted statuses (Flame Orb / Toxic Orb) are skipped entirely.
         elif cmd == "-status" and len(parts) >= 4:
             slot_label  = parts[2]
-            status_type = parts[3]   # 'psn', 'tox', 'brn', 'par', etc.
+            status_type = parts[3]
             player, name = slot_to_name(slot_label)
             if player and status_type in ("psn", "tox", "brn"):
-                mon = resolve(player, name)
-                opponent = "p2" if player == "p1" else "p1"
-                # Credit whoever just used the inflicting move; fall back to active
-                if last_move_user and last_move_user[0] == opponent:
-                    inflicter = last_move_user
+                # Check for a self-inflicted orb status
+                from_tag = parts[4] if len(parts) > 4 else ""
+                if any(tag in from_tag for tag in SELF_INFLICTED_STATUS_ITEMS):
+                    # Don't set an inflicter — burn/poison damage will be self-inflicted
+                    pass
                 else:
-                    inflicter_mon = active.get(opponent)
-                    inflicter = (opponent, inflicter_mon) if inflicter_mon else None
-                if inflicter:
-                    status_inflicted_by[(player, mon)] = inflicter
+                    mon = resolve(player, name)
+                    opponent = "p2" if player == "p1" else "p1"
+
+                    # Priority 1: Toxic Spikes caused the status
+                    if hazard_set_by.get((player, "[from] Toxic Spikes")):
+                        inflicter = hazard_set_by[(player, "[from] Toxic Spikes")]
+                    # Priority 2: an opponent move this turn inflicted the status
+                    elif last_move_user and last_move_user[0] == opponent:
+                        inflicter = last_move_user
+                    # Priority 3: fall back to active opponent
+                    else:
+                        inflicter_mon = active.get(opponent)
+                        inflicter = (opponent, inflicter_mon) if inflicter_mon else None
+
+                    if inflicter:
+                        status_inflicted_by[(player, mon)] = inflicter
 
         # Hazard set (Spikes / Stealth Rock / Toxic Spikes)
         # The move line just before this tells us the setter.
@@ -352,23 +405,73 @@ def analyse(log_text: str) -> dict:
             elif "Stealth Rock" in hazard_info:
                 hazard_set_by.pop((side_player, "[from] Stealth Rock"), None)
 
+        # Substitute started — the very next -damage on this mon is the
+        # HP cost of creating the sub, not an attack. Flag it to skip.
+        elif cmd == "-start" and len(parts) >= 4:
+            if parts[3] == "Substitute":
+                slot_label = parts[2]
+                player, name = slot_to_name(slot_label)
+                if player:
+                    skip_next_damage_as_sub_cost.add((player, resolve(player, name)))
+
+        # Trapping move activated (Infestation, Bind, etc.) — record the trapper.
+        # |-activate|p2a: Tapu Fini|move: Infestation|[of] p1a: charlotte
+        elif cmd == "-activate" and len(parts) >= 4:
+            move_info = parts[3]
+            if any(tag.replace("[from] ", "") in move_info for tag in TRAPPING_MOVE_TAGS):
+                slot_label = parts[2]
+                of_tag = parts[4] if len(parts) > 4 else ""
+                player, name = slot_to_name(slot_label)
+                of_player, of_name = slot_to_name(of_tag.replace("[of] ", ""))
+                if player and of_player:
+                    mon = resolve(player, name)
+                    trapper = (of_player, resolve(of_player, of_name))
+                    trapping_inflicted_by[(player, mon)] = trapper
+
+        # Heal — update hp so subsequent damage calculations have the right baseline.
+        # Covers: Leftovers, Wish, Drain moves, Soft-Boiled, Recover, etc.
+        elif cmd == "-heal" and len(parts) >= 4:
+            slot_label = parts[2]
+            hp_str     = parts[3]
+            player, name = slot_to_name(slot_label)
+            if not player:
+                continue
+            mon = resolve(player, name)
+            cur, mx = parse_hp(hp_str)
+            if mx:
+                hp[mon] = (cur / mx) * 100
+            else:
+                hp[mon] = cur
+
         # Damage
         elif cmd == "-damage" and len(parts) >= 4:
             slot_label = parts[2]
             hp_str     = parts[3]
             from_tag   = parts[4] if len(parts) > 4 else ""
+            of_tag     = parts[5] if len(parts) > 5 else ""
 
             player, name = slot_to_name(slot_label)
             if not player:
                 continue
             mon = resolve(player, name)
 
+            # Substitute HP cost — self-inflicted passive_taken, no opponent credit.
+            if (player, mon) in skip_next_damage_as_sub_cost:
+                skip_next_damage_as_sub_cost.discard((player, mon))
+                cur, mx = parse_hp(hp_str)
+                new_pct_sub = (cur / mx) * 100 if mx else cur
+                sub_cost = hp.get(mon, 100.0) - new_pct_sub
+                if sub_cost > 0:
+                    stats[player][mon]["passive_taken"] += sub_cost
+                hp[mon] = new_pct_sub
+                continue
+
             # Compute damage percentage
             cur, mx = parse_hp(hp_str)
             if mx:
                 new_pct = (cur / mx) * 100
             else:
-                new_pct = cur  # percentage mode
+                new_pct = cur
 
             prev_pct = hp.get(mon, 100.0)
             damage_pct = prev_pct - new_pct
@@ -376,21 +479,45 @@ def analyse(log_text: str) -> dict:
                 damage_pct = 0
             hp[mon] = new_pct
 
-            # Determine if passive
+            # Rocky Helmet: damage to attacker, credited as passive_dealt to the holder.
+            # The [of] field names the holder's slot, so we can attribute directly.
+            if "item: Rocky Helmet" in from_tag:
+                of_player, of_name = slot_to_name(of_tag.replace("[of] ", ""))
+                if of_player:
+                    holder = resolve(of_player, of_name)
+                    stats[player][mon]["passive_taken"] += damage_pct
+                    stats[of_player][holder]["passive_dealt"] += damage_pct
+                    last_hit_from_tag[(player, mon)] = from_tag
+                    last_hit_self_inflicted[(player, mon)] = False
+                continue
+
+            # Determine if self-inflicted (recoil, orb damage, etc.)
+            is_self_inflicted = any(tag in from_tag for tag in SELF_INFLICTED_TAGS)
+
+            # Orb-caused burn/poison chip is also self-inflicted (no inflicter was set)
+            if not is_self_inflicted and from_tag in STATUS_DAMAGE_TAGS:
+                if (player, mon) not in status_inflicted_by:
+                    is_self_inflicted = True
+
+            # Determine if passive (opponent-sourced but indirect)
             is_passive = any(tag in from_tag for tag in PASSIVE_SELF_TAGS)
 
-            # Resolve explicit dealer for status/hazard chip damage so the
-            # credit goes to the original inflicter even if they're off-field.
+            # Resolve explicit dealer for status/hazard/trapping chip damage.
             dealer = None
-            if from_tag in STATUS_DAMAGE_TAGS:
-                dealer = status_inflicted_by.get((player, mon))
-            elif from_tag in HAZARD_DAMAGE_TAGS:
-                dealer = hazard_set_by.get((player, from_tag))
+            if not is_self_inflicted:
+                if from_tag in STATUS_DAMAGE_TAGS:
+                    dealer = status_inflicted_by.get((player, mon))
+                elif from_tag in HAZARD_DAMAGE_TAGS:
+                    dealer = hazard_set_by.get((player, from_tag))
+                elif from_tag in TRAPPING_MOVE_TAGS:
+                    dealer = trapping_inflicted_by.get((player, mon))
 
-            record_damage(player, mon, damage_pct, is_passive, dealer=dealer)
-            last_damage_target = (player, mon)
+            record_damage(player, mon, damage_pct, is_passive,
+                          dealer=dealer, is_self_inflicted=is_self_inflicted)
+            last_hit_from_tag[(player, mon)] = from_tag
+            last_hit_self_inflicted[(player, mon)] = is_self_inflicted
 
-        # Faint 
+        # Faint
         elif cmd == "faint" and len(parts) >= 3:
             slot_label = parts[2]
             player, name = slot_to_name(slot_label)
@@ -402,34 +529,40 @@ def analyse(log_text: str) -> dict:
 
             opponent = "p2" if player == "p1" else "p1"
 
-            # If the last damage this mon took was from a status or hazard,
-            # credit the kill to the original inflicter rather than the active mon.
-            killer = None
-            if last_damage_target == (player, mon):
-                # Check if the previous damage line had a status/hazard tag —
-                # we do this by seeing if status_inflicted_by or hazard_set_by
-                # has an entry, and the mon's HP reached 0 from that source.
-                killer_entry = status_inflicted_by.get((player, mon))
-                if killer_entry is None:
-                    # Check hazards, if they were the last source, hp is 0 now
-                    for hazard_tag in HAZARD_DAMAGE_TAGS:
-                        entry = hazard_set_by.get((player, hazard_tag))
-                        if entry:
-                            killer_entry = entry
-                            break
+            killing_tag = last_hit_from_tag.get((player, mon), "")
+            killing_self = last_hit_self_inflicted.get((player, mon), False)
 
-            if killer_entry:
-                killer_player, killer_mon = killer_entry
-                stats[killer_player][killer_mon]["kills"] += 1
+            if killing_self:
+                # Self-inflicted death (recoil, orb) — no kill credit
+                pass
+            elif killing_tag in STATUS_DAMAGE_TAGS:
+                # Killed by burn/poison — credit the original inflicter
+                killer_entry = status_inflicted_by.get((player, mon))
+                if killer_entry:
+                    stats[killer_entry[0]][killer_entry[1]]["kills"] += 1
+                else:
+                    killer = active.get(opponent)
+                    if killer:
+                        stats[opponent][killer]["kills"] += 1
+            elif killing_tag in HAZARD_DAMAGE_TAGS:
+                # Killed by entry hazard — credit the setter
+                killer_entry = hazard_set_by.get((player, killing_tag))
+                if killer_entry:
+                    stats[killer_entry[0]][killer_entry[1]]["kills"] += 1
+                else:
+                    killer = active.get(opponent)
+                    if killer:
+                        stats[opponent][killer]["kills"] += 1
             else:
-                # Default: active opponent gets the kill
+                # Killed by a direct move — credit whoever is active on the other side
                 killer = active.get(opponent)
                 if killer:
                     stats[opponent][killer]["kills"] += 1
 
             hp[mon] = 0
-            # Clean up status tracking for this mon
             status_inflicted_by.pop((player, mon), None)
+            last_hit_from_tag.pop((player, mon), None)
+            last_hit_self_inflicted.pop((player, mon), None)
 
         # Winner 
         elif cmd == "win" and len(parts) >= 3:
