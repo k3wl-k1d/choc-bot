@@ -72,9 +72,9 @@ def extract_log_from_text(content: str, filename: str) -> str:
 
 # Core analyser
 
-# from-tags where the damage is self-inflicted — no opponent gets dealt credit.
-# Covers: move recoil, item recoil, and move-specific recoil strings used by Showdown.
-# Rocky Helmet is NOT here — it has an [of] field and credits the helmet holder.
+# from-tags where the damage is self-inflicted — no opponent gets dealt credit
+# Covers: move recoil, item recoil, and move-specific recoil strings used by Showdown
+# Rocky Helmet is NOT here — it has an [of] field and credits the helmet holder
 SELF_INFLICTED_TAGS = {
     "Recoil",
     "recoil",
@@ -89,7 +89,7 @@ SELF_INFLICTED_TAGS = {
     "move: Substitute",
 }
 
-# Passive damage taken (opponent-sourced, indirect).
+# Passive damage taken (opponent-sourced, indirect)
 PASSIVE_SELF_TAGS = {
     "brn", "psn", "tox", "confusion", "Salt Cure", "Leech Seed",
     "weather: Sandstorm", "weather: Hail", "weather: Snow",
@@ -98,9 +98,11 @@ PASSIVE_SELF_TAGS = {
     "move: Infestation", "move: Bind", "move: Wrap", "move: Fire Spin",
     "move: Whirlpool", "move: Magma Storm", "move: Sand Tomb",
     "move: Thunder Cage", "move: Clamp", "move: Snap Trap",
+
+    "ability: Innards Out", "ability: Iron Barbs", "ability: Aftermath", "ability: Rough Skin",
 }
 
-# Trapping move from-tags — credited to whoever used the move, tracked via trapping_inflicted_by.
+# Trapping move from-tags — credited to whoever used the move, tracked via trapping_inflicted_by
 TRAPPING_MOVE_TAGS = {
     "[from] move: Infestation", "[from] move: Bind", "[from] move: Wrap",
     "[from] move: Fire Spin", "[from] move: Whirlpool", "[from] move: Magma Storm",
