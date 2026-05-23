@@ -184,5 +184,6 @@ RESPONSES = [
     "i'm suing you",
     "do NOT ping me again",
     "blocked",
-    "stfu"
+    "stfu",
+    "https://tenor.com/view/me-atrapaste-es-cine-its-cinema-cinema-esto-es-cine-gif-12869046600151364058"
 ]

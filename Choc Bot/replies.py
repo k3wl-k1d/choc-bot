@@ -25,5 +25,6 @@ REPLIES = {
     "mons" : "braindead chat",
     "brainrot" : "tung tung tung sahur",
     "job" : "i'm working",
-    "six" : "seven"
+    "six" : "seven",
+    "cinema" : "https://tenor.com/view/me-atrapaste-es-cine-its-cinema-cinema-esto-es-cine-gif-12869046600151364058"
 }
