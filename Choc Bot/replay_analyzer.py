@@ -53,8 +53,8 @@ def extract_log(filepath: str) -> str:
 def extract_log_from_text(content: str, filename: str) -> str:
     """
     Parse a replay from an already-read string.
-    Used by the Discord bot, which downloads attachment bytes in memory.
-    `filename` is used only to detect .html vs .txt — no file I/O is done.
+    Used by Choc, which downloads attachment bytes in memory.
+    `filename` is used only to detect .html vs .txt - no file I/O is done.
     """
     if filename.lower().endswith(".html"):
         parser = _BattleLogExtractor()
@@ -62,7 +62,6 @@ def extract_log_from_text(content: str, filename: str) -> str:
         log = parser.get_log()
         if not log.strip():
             raise ValueError("Could not find battle-log-data in the HTML file.")
-        # The HTML escapes forward slashes as \/ — unescape them
         log = log.replace("\\/", "/")
         return log
     else:
@@ -72,9 +71,9 @@ def extract_log_from_text(content: str, filename: str) -> str:
 
 # Core analyser
 
-# from-tags where the damage is self-inflicted — no opponent gets dealt credit
+# from-tags where the damage is self-inflicted - no opponent gets dealt credit
 # Covers: move recoil, item recoil, and move-specific recoil strings used by Showdown
-# Rocky Helmet is NOT here — it has an [of] field and credits the helmet holder
+# Rocky Helmet is NOT here - it has an [of] field and credits the helmet holder
 SELF_INFLICTED_TAGS = {
     "Recoil",
     "recoil",
@@ -92,7 +91,7 @@ SELF_INFLICTED_TAGS = {
 # Passive damage taken (opponent-sourced, indirect)
 PASSIVE_SELF_TAGS = {
     "brn", "psn", "tox", "confusion", "Salt Cure", "Leech Seed",
-    "weather: Sandstorm", "weather: Hail", "weather: Snow",
+    "weather: Sandstorm", "weather: Hail",
     "hazard: Spikes", "hazard: Stealth Rock", "hazard: Toxic Spikes",
     "move: Future Sight", "move: Doom Desire",
     "move: Infestation", "move: Bind", "move: Wrap", "move: Fire Spin",
@@ -102,7 +101,7 @@ PASSIVE_SELF_TAGS = {
     "ability: Innards Out", "ability: Iron Barbs", "ability: Aftermath", "ability: Rough Skin",
 }
 
-# Trapping move from-tags — credited to whoever used the move, tracked via trapping_inflicted_by
+# Trapping move from-tags - credited to whoever used the move, tracked via trapping_inflicted_by
 TRAPPING_MOVE_TAGS = {
     "[from] move: Infestation", "[from] move: Bind", "[from] move: Wrap",
     "[from] move: Fire Spin", "[from] move: Whirlpool", "[from] move: Magma Storm",
@@ -110,7 +109,7 @@ TRAPPING_MOVE_TAGS = {
     "[from] move: Snap Trap",
 }
 
-# Status inflicted by the holder's own item — never credit the opponent.
+# Status inflicted by the holder's own item - never credit the opponent.
 SELF_INFLICTED_STATUS_ITEMS = {"item: Flame Orb", "item: Toxic Orb"}
 
 
@@ -163,6 +162,7 @@ def analyse(log_text: str) -> dict:
                                'kills': int, 'deaths': int } },
       'p2': { ... },
       'players': { 'p1': str, 'p2': str },
+      'team_order': { 'p1': [species, ...], 'p2': [species, ...] },
       'winner': str | None,
     }
     """
@@ -170,6 +170,10 @@ def analyse(log_text: str) -> dict:
 
     players = {}   # p1/p2 -> player name
     winner = None
+
+    # Team preview order - list of species in the order Showdown shows them
+    # at team preview. Used purely for output sorting; no effect on calculations.
+    team_order = {"p1": [], "p2": []}
 
     # Track the active pokemon per slot
     active = {}          # 'p1' / 'p2' -> species name currently in slot a
@@ -189,12 +193,12 @@ def analyse(log_text: str) -> dict:
     }))
 
     # Keep a small look-ahead buffer: damage events need to know
-    # who just used a move so we can attribute the damage.
+    # who just used a move so it can be attributed with the damage.
     last_move_user = None   # (player, species) that last used a move
 
     # Track the from_tag of the most recent damage event per (player, mon).
     # Used in the faint block to know whether the killing hit was a move,
-    # status, or hazard — without being confused by recoil on the attacker.
+    # status, or hazard - without being confused by recoil on the attacker.
     last_hit_from_tag = {}  # (player, mon) -> from_tag string of last damage
 
     # The Substitute move shows up as:
@@ -287,6 +291,16 @@ def analyse(log_text: str) -> dict:
             if name:           # ignore empty-name lines that appear mid-replay
                 players[slot] = name
 
+        # Team preview - record the species order shown to both players.
+        # Format: |poke|p1|Pikachu, F|   (gender is optional)
+        # Only capture the species (first comma-separated token), 
+        
+        elif cmd == "poke" and len(parts) >= 4:
+            slot = parts[2]   # 'p1' or 'p2'
+            species = species_from_info(parts[3])
+            if slot in team_order and species and species not in team_order[slot]:
+                team_order[slot].append(species)
+
         # Switch / Drag (update active slot)
         elif cmd in ("switch", "drag", "replace") and len(parts) >= 4:
             slot_label = parts[2]
@@ -320,7 +334,7 @@ def analyse(log_text: str) -> dict:
 
         # Forme / mega evolution change
         # e.g. |detailschange|p2a: Bunny Gesserit|Lopunny-Mega, F
-        # The Pokemon is the same individual — alias the mega name back to the
+        # The Pokemon is the same individual - alias the mega name back to the
         # base species so all subsequent damage lines stay on one row.
         elif cmd == "detailschange" and len(parts) >= 4:
             slot_label   = parts[2]   # 'p2a: Bunny Gesserit'
@@ -328,7 +342,7 @@ def analyse(log_text: str) -> dict:
             player, nickname = slot_to_name(slot_label)
             if player:
                 new_species  = species_from_info(new_info)
-                base_species = resolve(player, nickname)   # what we already track it as
+                base_species = resolve(player, nickname)   # already tracked as
                 # Point the mega name back to the base species key so any line
                 # that references the new forme name resolves to the same entry.
                 nickname_map[(player, new_species)] = base_species
@@ -341,7 +355,7 @@ def analyse(log_text: str) -> dict:
             if player:
                 last_move_user = (player, resolve(player, name))
 
-        # Turn boundary — reset move tracking so last_move_user never
+        # Turn boundary - reset move tracking so last_move_user never
         # bleeds across turns and pollutes status/damage attribution.
         elif cmd == "turn":
             last_move_user = None
@@ -357,7 +371,7 @@ def analyse(log_text: str) -> dict:
                 # Check for a self-inflicted orb status
                 from_tag = parts[4] if len(parts) > 4 else ""
                 if any(tag in from_tag for tag in SELF_INFLICTED_STATUS_ITEMS):
-                    # Don't set an inflicter — burn/poison damage will be self-inflicted
+                    # Don't set an inflicter - burn/poison damage will be self-inflicted
                     pass
                 else:
                     mon = resolve(player, name)
@@ -380,7 +394,7 @@ def analyse(log_text: str) -> dict:
         # Hazard set (Spikes / Stealth Rock / Toxic Spikes)
         # The move line just before this tells us the setter.
         elif cmd == "-sidestart" and len(parts) >= 4:
-            # parts[2] = 'p1: Shirmp' — extract the player side
+            # parts[2] = 'p1: Shirmp' - extract the player side
             side_player = parts[2].split(":")[0].strip()   # 'p1' or 'p2'
             hazard_info = parts[3]   # i.e. 'move: Toxic Spikes', 'Spikes'
             # Normalise to a tag that will appear in damage lines
@@ -407,7 +421,7 @@ def analyse(log_text: str) -> dict:
             elif "Stealth Rock" in hazard_info:
                 hazard_set_by.pop((side_player, "[from] Stealth Rock"), None)
 
-        # Substitute started — the very next -damage on this mon is the
+        # Substitute started - the very next -damage on this mon is the
         # HP cost of creating the sub, not an attack. Flag it to skip.
         elif cmd == "-start" and len(parts) >= 4:
             if parts[3] == "Substitute":
@@ -416,7 +430,7 @@ def analyse(log_text: str) -> dict:
                 if player:
                     skip_next_damage_as_sub_cost.add((player, resolve(player, name)))
 
-        # Trapping move activated (Infestation, Bind, etc.) — record the trapper.
+        # Trapping move activated (Infestation, Bind, etc.) - record the trapper.
         # |-activate|p2a: Tapu Fini|move: Infestation|[of] p1a: charlotte
         elif cmd == "-activate" and len(parts) >= 4:
             move_info = parts[3]
@@ -430,7 +444,7 @@ def analyse(log_text: str) -> dict:
                     trapper = (of_player, resolve(of_player, of_name))
                     trapping_inflicted_by[(player, mon)] = trapper
 
-        # Heal — update hp so subsequent damage calculations have the right baseline.
+        # Heal - update hp so subsequent damage calculations have the right baseline.
         # Covers: Leftovers, Wish, Drain moves, Soft-Boiled, Recover, etc.
         elif cmd == "-heal" and len(parts) >= 4:
             slot_label = parts[2]
@@ -457,7 +471,7 @@ def analyse(log_text: str) -> dict:
                 continue
             mon = resolve(player, name)
 
-            # Substitute HP cost — self-inflicted passive_taken, no opponent credit.
+            # Substitute HP cost - self-inflicted passive_taken, no opponent credit.
             if (player, mon) in skip_next_damage_as_sub_cost:
                 skip_next_damage_as_sub_cost.discard((player, mon))
                 cur, mx = parse_hp(hp_str)
@@ -482,7 +496,7 @@ def analyse(log_text: str) -> dict:
             hp[mon] = new_pct
 
             # Rocky Helmet: damage to attacker, credited as passive_dealt to the holder.
-            # The [of] field names the holder's slot, so we can attribute directly.
+            # The [of] field names the holder's slot, so attribute directly.
             if "item: Rocky Helmet" in from_tag:
                 of_player, of_name = slot_to_name(of_tag.replace("[of] ", ""))
                 if of_player:
@@ -535,10 +549,10 @@ def analyse(log_text: str) -> dict:
             killing_self = last_hit_self_inflicted.get((player, mon), False)
 
             if killing_self:
-                # Self-inflicted death (recoil, orb) — no kill credit
+                # Self-inflicted death (recoil, orb) - no kill credit
                 pass
             elif killing_tag in STATUS_DAMAGE_TAGS:
-                # Killed by burn/poison — credit the original inflicter
+                # Killed by burn/poison - credit the original inflicter
                 killer_entry = status_inflicted_by.get((player, mon))
                 if killer_entry:
                     stats[killer_entry[0]][killer_entry[1]]["kills"] += 1
@@ -547,7 +561,7 @@ def analyse(log_text: str) -> dict:
                     if killer:
                         stats[opponent][killer]["kills"] += 1
             elif killing_tag in HAZARD_DAMAGE_TAGS:
-                # Killed by entry hazard — credit the setter
+                # Killed by entry hazard - credit the setter
                 killer_entry = hazard_set_by.get((player, killing_tag))
                 if killer_entry:
                     stats[killer_entry[0]][killer_entry[1]]["kills"] += 1
@@ -556,7 +570,7 @@ def analyse(log_text: str) -> dict:
                     if killer:
                         stats[opponent][killer]["kills"] += 1
             else:
-                # Killed by a direct move — credit whoever is active on the other side
+                # Killed by a direct move - credit whoever is active on the other side
                 killer = active.get(opponent)
                 if killer:
                     stats[opponent][killer]["kills"] += 1
@@ -574,11 +588,32 @@ def analyse(log_text: str) -> dict:
         "p1": dict(stats["p1"]),
         "p2": dict(stats["p2"]),
         "players": players,
+        "team_order": team_order,
         "winner": winner,
     }
 
 
 # Formatters
+def _ordered_mons(side: str, results: dict):
+    """
+    Yield (mon_name, stats_dict) pairs for one player's side in team-preview order.
+    Any mons that somehow aren't in team preview (shouldn't happen in a normal
+    replay, but defensive) are appended at the end in alphabetical order.
+    """
+    mons       = results[side]
+    team_order = results.get("team_order", {}).get(side, [])
+
+    seen = set()
+    for species in team_order:
+        if species in mons:
+            yield species, mons[species]
+            seen.add(species)
+    # Fallback: any tracked mon that wasn't in team preview
+    for species in sorted(mons):
+        if species not in seen:
+            yield species, mons[species]
+
+
 def _build_side_block(side: str, results: dict) -> str:
     """
     Return a monospace Discord block for one player's side.
@@ -596,7 +631,7 @@ def _build_side_block(side: str, results: dict) -> str:
              ("direct_dealt", "passive_dealt", "direct_taken", "passive_taken",
               "kills", "deaths")}
 
-    for mon, s in sorted(mons.items()):
+    for mon, s in _ordered_mons(side, results):
         dd = s["direct_dealt"]
         pd = s["passive_dealt"]
         dt = s["direct_taken"]
@@ -655,7 +690,7 @@ def format_for_discord(results: dict) -> list[str]:
     )
 
     messages = [
-        f"**Replay Analysis** — {header}\n{legend}",
+        f"**Replay Analysis** - {header}\n{legend}",
         _build_side_block("p1", results),
         _build_side_block("p2", results),
     ]
@@ -663,7 +698,7 @@ def format_for_discord(results: dict) -> list[str]:
 
 
 def print_results(results: dict):
-    """CLI pretty-printer (unchanged — still works for standalone use)."""
+    """CLI pretty-printer (unchanged - still works for standalone use)."""
     players = results["players"]
     winner  = results["winner"]
 
@@ -695,7 +730,7 @@ def print_results(results: dict):
                  ("direct_dealt", "passive_dealt", "direct_taken", "passive_taken",
                   "kills", "deaths")}
 
-        for mon, s in sorted(mons.items()):
+        for mon, s in _ordered_mons(side, results):
             dd = s["direct_dealt"]
             pd = s["passive_dealt"]
             dt = s["direct_taken"]
