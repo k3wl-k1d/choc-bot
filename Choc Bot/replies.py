@@ -5,8 +5,6 @@ Choc will automatically answer when a valid keyword is seen
 
 REPLIES = {
     "gay" : "Did somebody say the Gaylord Gastrodons?",
-    "sds" : "Garbage league with a garbage mod",
-    "sdl" : "what even....",
     "gastrodon" : "you called?",
     "unlucky" : "you don't get to lecture me on luck",
     "lawyer" : "I can represent",
@@ -17,7 +15,7 @@ REPLIES = {
     "jaden" : "I came to you weak, vulnerable. All you did was hurt me.",
     "schedule" : "I can't do weekends. I have dinner with my family",
     "weekend" : "too busy",
-    "weekends" : "too busy",
+    "stall" : "you click toxic one time and i'm banning you",
     "family" : "family strong",
     "fuck you" : "no fuck you",
     "brainrot" : "tung tung tung sahur",
@@ -28,5 +26,16 @@ REPLIES = {
     "genius" : "https://tenor.com/view/neuron-thinking-ggst-another-story-strive-gif-11247001477678229962",
     "blink" : "https://tenor.com/view/plink-wide-cat-plink-cat-meow-gif-27396868",
     "plink" : "https://tenor.com/view/plink-wide-cat-plink-cat-meow-gif-27396868",
-    "huh" : "https://tenor.com/view/plink-wide-cat-plink-cat-meow-gif-27396868"
+    "huh" : "https://tenor.com/view/plink-wide-cat-plink-cat-meow-gif-27396868",
+    "congrat" : "https://tenor.com/view/seal-clapping-property-of-mello-gif-17743612165590356299",
+    "boykisser" : "https://tenor.com/view/boykisser-i-smell-a-boykisser-gif-11265875781434974934",
+    "chi-yu" : "https://tenor.com/view/chi-yu-pokemon-speech-bubble-torkoal-gif-17904128452003247135",
+    "chiyu" : "https://tenor.com/view/chi-yu-pokemon-speech-bubble-torkoal-gif-17904128452003247135",
+    "chi yu" : "https://tenor.com/view/chi-yu-pokemon-speech-bubble-torkoal-gif-17904128452003247135",
+    "romania" : "https://tenor.com/view/black-cinema-hell-jack-kastike-gif-7972313629826212715",
+    "japan" : "https://cdn.discordapp.com/attachments/1282149643936862230/1483141802448912454/image0.gif",
+    "cat" : "https://cdn.discordapp.com/attachments/1453732718453067912/1510969710940786789/e0fd6e9a768f22ee78382a1306cec42aa193a76a5dd3c7c959fdf816741fad90.gif",
+    "freak" : "https://cdn.discordapp.com/attachments/1282149643936862230/1420872466070376659/bridget_reaction.gif",
+    "ungem:" : "https://tenor.com/view/gem-alert-gem-whiplash-not-quite-my-tempo-gif-1991614876853049774",
+    "gem" : "https://tenor.com/view/gem-alert-pjberriboi-elmer-fudd-looney-toons-gem-looney-tunes-gem-gif-878726278215859238",
 }
